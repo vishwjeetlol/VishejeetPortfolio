@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Classic Tata Truck Cabin Simulator</title>
+<meta name="description" content="First-person driver-cabin experience of a classic Indian Tata truck: decor, cassette stereo, working horn and gauges, four environments.">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rozha+One&family=Share+Tech+Mono&family=Yatra+One&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+html,body{height:100%;margin:0;background:#0c0a09;color:#f5f5f4;color-scheme:dark;overflow:hidden;user-select:none;-webkit-user-select:none;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+.font-devanagari{font-family:'Yatra One','Rozha One',cursive,serif}.font-digital{font-family:'Share Tech Mono',monospace}.font-gauge{font-family:'Chakra Petch',sans-serif}
+@keyframes sway{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
+@keyframes spin-slow{to{transform:rotate(360deg)}}
+@keyframes vibe{0%{transform:translate(0,0)}25%{transform:translate(-.4px,.6px)}50%{transform:translate(.5px,-.4px)}75%{transform:translate(-.5px,-.3px)}100%{transform:translate(0,0)}}
+@keyframes vibe-rev{0%{transform:translate(0,0)}20%{transform:translate(-1.2px,1.4px)}40%{transform:translate(1.4px,-1px)}60%{transform:translate(-1px,-1.2px)}80%{transform:translate(1.2px,.8px)}100%{transform:translate(0,0)}}
+.animate-vibe-idle{animation:vibe .12s infinite linear}.animate-vibe-rev{animation:vibe-rev .06s infinite linear}.spin-reel{animation:spin-slow 2.4s infinite linear}
+.flag{animation:sway var(--fd,2.2s) infinite ease-in-out;transform-origin:top center}.tas{animation:sway var(--td,3s) infinite ease-in-out;transform-origin:top center}
+body.rev{--fd:.6s;--td:.75s}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:rgba(217,119,6,.5);border-radius:3px}
+</style>
+</head>
+<body class="bg-stone-950">
+<div class="relative w-screen h-screen overflow-hidden">
+
+<!-- TICKER -->
+<div class="absolute top-0 inset-x-0 z-50 h-7 bg-stone-950 border-b border-amber-600/30 px-3 flex items-center justify-between text-[11px] text-amber-200 font-mono">
+  <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span class="font-bold text-amber-400">TATA TRUCK CABIN 1613 SE</span><span class="hidden sm:inline text-stone-400">| ALL INDIA PERMIT • TURBO DIESEL</span></div>
+  <div class="flex items-center space-x-3 text-[10px]"><span class="text-amber-400 font-bold hidden md:inline">[SPACE] Honk • [W] Rev • [E] Ignition • [C] Cassette • [1-4] Scene</span><span class="font-devanagari text-yellow-300 font-bold">॥ जय जवान जय किसान ॥</span></div>
+</div>
+
+<!-- HUD -->
+<div class="absolute top-14 sm:top-16 inset-x-0 z-40 px-2 sm:px-6 pointer-events-none flex flex-wrap justify-between items-start gap-2">
+  <div class="pointer-events-auto flex items-center space-x-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-stone-700/80 shadow-2xl">
+    <button id="bEng" data-a="engine">🔑 <span id="engL"></span></button>
+    <button id="bAcc" title="Hold to rev (or W / Up Arrow)"><span id="accL"></span></button>
+  </div>
+  <div id="envs" class="pointer-events-auto flex items-center space-x-1 bg-stone-900/85 backdrop-blur-md p-1 rounded-xl border border-stone-700/80 shadow-2xl"></div>
+  <div class="pointer-events-auto flex items-center space-x-1.5 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-stone-700/80 shadow-2xl">
+    <div id="views" class="flex space-x-1 border-r border-stone-700 pr-1.5"></div>
+    <button data-a="lore" class="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-600 shadow text-xs font-mono">ℹ️ <span class="hidden md:inline">TRUCK LORE</span></button>
+    <button id="bMute" data-a="mute" class="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-600 shadow text-xs"></button>
+    <button data-a="snap" class="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-mono text-[11px] shadow border border-amber-300">SNAP 📸</button>
+  </div>
+</div>
+
+<!-- CAMERA / VIEWPORT -->
+<div id="cam" class="relative w-full h-full" style="transition:transform .5s ease-out;transform-origin:center">
+<div id="vp" class="relative w-full h-full">
+
+  <!-- WINDSHIELD -->
+  <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+    <div id="scene" class="absolute inset-0"></div>
+    <div id="glow" class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse at 50% 65%,rgba(254,240,138,.45) 0%,rgba(251,191,36,.15) 50%,transparent 80%);mix-blend-mode:screen;opacity:0;transition:opacity .15s"></div>
+    <canvas id="cv" class="absolute inset-0 z-10 w-full h-full"></canvas>
+    <div class="absolute inset-0 z-[15]">
+      <div class="absolute inset-0" style="background:radial-gradient(ellipse at center,transparent 45%,rgba(120,53,15,.18) 80%,rgba(69,26,3,.45) 100%)"></div>
+      <div class="absolute inset-0 opacity-20" style="background-image:radial-gradient(circle,rgba(255,255,255,.08) 1px,transparent 1px);background-size:16px 16px"></div>
+      <svg class="absolute inset-0 w-full h-full opacity-25" preserveAspectRatio="none" viewBox="0 0 1000 600"><path d="M 550,560 A 380,380 0 0,1 920,320" fill="none" stroke="#fef08a" stroke-width="6" opacity=".4"/><path d="M 80,560 A 380,380 0 0,1 450,320" fill="none" stroke="#fef08a" stroke-width="6" opacity=".4"/></svg>
+      <div id="flare" class="absolute top-12 right-24 w-72 h-72 rounded-full blur-2xl" style="background:linear-gradient(135deg,rgba(254,249,195,.4),rgba(252,211,77,.15),transparent)"></div>
+    </div>
+    <div class="absolute inset-x-0 bottom-[22%] sm:bottom-[24%] md:bottom-[26%] z-20">
+      <div id="w1" class="absolute left-[26%] bottom-0 w-2 h-44 sm:h-52 md:h-64 origin-bottom"><div class="w-1.5 h-full bg-gradient-to-r from-stone-800 via-stone-700 to-stone-900 rounded-t shadow-md mx-auto"></div><div class="absolute -bottom-2 -left-1.5 w-5 h-5 rounded-full bg-stone-900 border-2 border-stone-600"></div><div class="absolute top-0 -left-1.5 w-4 h-36 sm:h-44 bg-stone-950 border-r border-stone-700 rounded-sm shadow-lg"></div></div>
+      <div id="w2" class="absolute right-[28%] bottom-0 w-2 h-44 sm:h-52 md:h-64 origin-bottom"><div class="w-1.5 h-full bg-gradient-to-r from-stone-800 via-stone-700 to-stone-900 rounded-t shadow-md mx-auto"></div><div class="absolute -bottom-2 -left-1.5 w-5 h-5 rounded-full bg-stone-900 border-2 border-stone-600"></div><div class="absolute top-0 -left-1.5 w-4 h-36 sm:h-44 bg-stone-950 border-r border-stone-700 rounded-sm shadow-lg"></div></div>
+    </div>
+    <div class="absolute top-0 left-0 bottom-0 w-6 sm:w-10 md:w-14 bg-gradient-to-r from-amber-950 via-stone-900 to-stone-950 border-r-2 border-amber-700/50 shadow-2xl z-[25] rivets"></div>
+    <div class="absolute top-0 right-0 bottom-0 w-6 sm:w-10 md:w-14 bg-gradient-to-l from-amber-950 via-stone-900 to-stone-950 border-l-2 border-amber-700/50 shadow-2xl z-[25] rivets"></div>
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 bottom-[26%] w-3 sm:w-4 bg-gradient-to-r from-stone-800 via-stone-700 to-stone-900 border-x border-stone-600 shadow-xl z-[25] flex flex-col justify-between py-12 items-center"><i class="w-1.5 h-1.5 rounded-full bg-amber-400"></i><i class="w-1.5 h-1.5 rounded-full bg-amber-400"></i><i class="w-1.5 h-1.5 rounded-full bg-amber-400"></i></div>
+  </div>
+
+  <!-- ROOF DECOR -->
+  <div class="absolute top-0 left-0 right-0 z-30 pointer-events-none">
+    <div class="h-10 md:h-12 w-full bg-gradient-to-b from-stone-900 via-amber-950 to-stone-900 border-b border-amber-600/40 shadow-xl relative overflow-hidden flex items-center justify-between px-4">
+      <div class="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-r from-red-700 via-amber-500 to-red-700 opacity-90"></div>
+      <div class="flex items-center space-x-2 text-amber-300 text-xs font-bold opacity-75"><span class="font-devanagari text-sm text-yellow-400">॥ ॐ नमः शिवाय ॥</span><span class="hidden md:inline font-mono text-[10px] text-amber-500">TATA 1613 • ALL INDIA PERMIT</span></div>
+      <span class="font-devanagari font-bold text-yellow-300 text-xs">॥ जय माता दी ॥</span>
+    </div>
+    <div class="relative w-full px-2 md:px-8 -mt-1 pointer-events-auto">
+      <svg class="w-full h-8 overflow-visible absolute -top-1 left-0 right-0 pointer-events-none" preserveAspectRatio="none" viewBox="0 0 1000 30"><path d="M 0,0 Q 500,28 1000,0" fill="none" stroke="#b45309" stroke-width="2.5" stroke-dasharray="6 3" opacity=".8"/></svg>
+      <div id="flags" class="flex justify-between items-start w-full relative z-10 pt-1"></div>
+      <div id="garland" class="relative w-full -mt-2 sm:-mt-3 z-20 flex justify-around pointer-events-none px-4"></div>
+      <div class="relative z-20 flex justify-around items-start px-6 sm:px-24" id="hang"></div>
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
+        <div class="w-1.5 h-4 bg-stone-700"></div>
+        <div class="w-28 sm:w-36 h-8 bg-stone-900 rounded-md border-2 border-stone-600 shadow-2xl p-1 relative overflow-hidden"><div class="w-full h-full bg-gradient-to-b from-stone-800 via-stone-700 to-amber-950/80 rounded flex items-center justify-between px-2 text-[8px] text-stone-400 font-mono"><span class="opacity-50">OBJECTS IN MIRROR...</span><i class="w-2 h-2 rounded-full bg-red-500/80 animate-pulse"></i></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="absolute inset-x-0 bottom-0 z-20">
+    <div class="relative w-full bg-gradient-to-b from-stone-900 to-stone-950 border-t-4 border-amber-800/80 pt-3 pb-4 px-2 sm:px-6 md:px-8" style="box-shadow:inset 0 4px 8px rgba(255,255,255,.06),0 -20px 40px rgba(0,0,0,.85)">
+      <div class="w-full h-3 sm:h-4 mb-2.5 rounded border-y border-amber-900/60 opacity-90" style="background:linear-gradient(90deg,#451a03,#78350f 25%,#92400e 50%,#78350f 75%,#451a03)"><div class="w-full h-full opacity-35" style="background:repeating-linear-gradient(90deg,transparent 0,transparent 40px,rgba(254,215,170,.2) 40px,rgba(254,215,170,.2) 42px)"></div></div>
+
+      <div class="flex justify-between items-end mb-2 relative px-2">
+        <div class="flex items-center space-x-3">
+          <div id="fan" data-a="fan" class="cursor-pointer flex flex-col items-center" title="Metal cabin fan - click to toggle">
+            <div id="fanC" class="w-14 h-14 sm:w-[4.5rem] sm:h-[4.5rem] rounded-full border-2 border-stone-500 bg-stone-900/90 shadow-xl flex items-center justify-center relative overflow-hidden">
+              <div id="fanB" class="w-full h-full flex items-center justify-center" style="animation-duration:.18s"><div class="w-1.5 h-12 bg-stone-300 rounded-sm"></div><div class="w-12 h-1.5 bg-stone-300 rounded-sm absolute"></div></div>
+              <div class="absolute w-4 h-4 rounded-full bg-amber-500 border border-stone-800"></div>
+            </div>
+            <div id="rib" class="w-2 h-7 bg-red-600 origin-top shadow"></div>
+            <div class="w-4 h-3 bg-stone-800 rounded-t border-t border-stone-600 -mt-1"></div>
+          </div>
+          <div class="hidden sm:flex flex-col justify-around w-16 h-12 bg-stone-950 p-1 rounded border border-stone-700"><i class="w-full h-1 bg-stone-700 rounded-sm"></i><i class="w-full h-1 bg-stone-700 rounded-sm"></i><i class="w-full h-1 bg-stone-700 rounded-sm"></i><i class="w-full h-1 bg-stone-700 rounded-sm"></i></div>
+          <div data-a="lore" data-i="shubh-labh" class="hidden md:flex cursor-pointer px-2.5 py-1 bg-gradient-to-r from-red-700 via-rose-600 to-red-800 border-2 border-amber-400 rounded shadow-md hover:scale-105 transition-transform"><span class="font-devanagari text-yellow-300 font-bold text-xs">॥ शुभ लाभ ॥</span></div>
+        </div>
+        <div data-a="lore" data-i="brass-idol" class="cursor-pointer flex flex-col items-center relative -mb-1 px-3 py-1 rounded hover:bg-stone-800/40" title="Pooja Sthan: Brass Ganesha with marigold petals">
+          <div class="absolute -left-3 bottom-2 flex flex-col items-center"><i class="w-0.5 h-1.5 bg-amber-400 rounded-full animate-ping"></i><i class="w-0.5 h-6 bg-stone-700 border-l border-amber-700"></i></div>
+          <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-t-full bg-gradient-to-b from-yellow-300 via-amber-400 to-amber-600 border border-yellow-200 flex flex-col items-center justify-center relative" style="box-shadow:0 0 12px rgba(245,158,11,.5)"><i class="w-1.5 h-2 bg-red-600 -mt-1"></i><i class="absolute -left-1.5 top-2 w-2 h-3 bg-amber-500 rounded-full"></i><i class="absolute -right-1.5 top-2 w-2 h-3 bg-amber-500 rounded-full"></i><i class="w-1 h-3 bg-amber-400 rounded-b -mb-1"></i></div>
+          <div class="w-7 h-5 sm:w-10 sm:h-6 bg-gradient-to-b from-amber-400 to-amber-700 rounded-b-md border-t border-amber-300 flex items-center justify-center"><i class="w-3 h-1.5 bg-yellow-300 rounded-full"></i></div>
+          <div class="w-20 sm:w-24 h-3 bg-red-800 rounded border-t-2 border-amber-400 flex items-center justify-around px-1 -mt-0.5"><i class="w-2 h-1.5 bg-yellow-400 rounded-full"></i><i class="w-2.5 h-1.5 bg-orange-500 rounded-full"></i><i class="w-2 h-1.5 bg-yellow-300 rounded-full"></i><i class="w-2.5 h-1.5 bg-orange-400 rounded-full"></i></div>
+          <div class="absolute -right-3 bottom-1.5 flex flex-col items-center"><i class="w-2 h-2 rounded-full bg-amber-300 animate-pulse" style="box-shadow:0 0 8px #fbbf24"></i><i class="w-3 h-1.5 bg-amber-700 rounded-b"></i></div>
+        </div>
+        <div data-a="lore" data-i="horn-ok-please" class="cursor-pointer px-2 sm:px-3 py-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded border-2 border-red-600 shadow-md text-stone-950 font-black text-[10px] sm:text-xs tracking-wider flex items-center space-x-1 hover:scale-105 transition-transform"><span>HORN</span><span class="bg-red-700 text-yellow-200 px-1">OK</span><span>PLEASE</span></div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-center">
+        <!-- INSTRUMENTS -->
+        <div class="lg:col-span-4 bg-stone-950/90 p-2 sm:p-3 rounded-xl border-2 border-stone-800 shadow-2xl">
+          <div class="flex items-center justify-between text-[9px] font-mono border-b border-stone-800 pb-1 mb-2"><span class="text-amber-500 font-bold">INSTRUMENT PANEL</span><span id="pwr" class="text-emerald-400 font-bold"></span></div>
+          <div class="flex items-center justify-around">
+            <div class="flex flex-col items-center">
+              <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-stone-900 border-4 border-stone-700 shadow-2xl relative flex items-center justify-center overflow-hidden">
+                <div class="absolute inset-1 rounded-full bg-gradient-to-b from-stone-950 to-stone-900 border border-stone-700 flex flex-col items-center justify-between p-2 text-amber-200 font-gauge font-semibold text-[9px]"><span class="text-[10px] font-bold">60</span><div class="w-full flex justify-between px-1"><span>20</span><span>100</span></div><div class="w-full flex justify-between px-2"><span>0</span><span>120</span></div><span class="text-[8px] text-stone-400 font-mono tracking-widest mt-1">KM/H</span></div>
+                <div class="absolute text-stone-700 text-xs font-mono font-bold opacity-30">TATA</div>
+                <div id="sN" class="absolute w-1 h-12 sm:h-14 bg-gradient-to-t from-orange-600 to-amber-300 origin-bottom rounded-t" style="bottom:50%;box-shadow:0 0 8px #f97316"></div>
+                <div class="w-4 h-4 rounded-full bg-stone-800 border-2 border-amber-400 z-10"></div>
+              </div>
+              <div class="mt-1 text-[10px] font-mono font-bold text-amber-300"><span id="sT"></span> <span class="text-[8px] text-stone-400">KM/H</span></div>
+            </div>
+            <div class="flex flex-col items-center">
+              <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-stone-900 border-4 border-stone-700 shadow-2xl relative flex items-center justify-center overflow-hidden">
+                <div class="absolute inset-1 rounded-full bg-gradient-to-b from-stone-950 to-stone-900 border border-stone-700 flex flex-col items-center justify-between p-2 font-gauge text-[8px]"><span class="text-[9px] text-emerald-400 font-bold">15</span><div class="w-full flex justify-between px-1"><span class="text-emerald-400">5</span><span class="text-rose-400 font-bold">25</span></div><div class="w-full flex justify-between px-2"><span class="text-stone-300">0</span><span class="text-rose-500 font-bold">35</span></div><span class="text-[7px] text-stone-400 font-mono tracking-widest">RPM × 100</span></div>
+                <div id="rN" class="absolute w-1 h-10 sm:h-12 bg-gradient-to-t from-amber-500 to-yellow-300 origin-bottom rounded-t" style="bottom:50%;box-shadow:0 0 8px #facc15"></div>
+                <div class="w-3.5 h-3.5 rounded-full bg-stone-800 border-2 border-stone-400 z-10"></div>
+              </div>
+              <div class="mt-1 text-[10px] font-mono font-bold text-amber-300"><span id="rT"></span> <span class="text-[8px] text-stone-400">RPM</span></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-stone-800/80">
+            <div class="flex items-center space-x-2 bg-stone-900/60 p-1 rounded border border-stone-800"><div class="w-6 h-6 rounded-full bg-stone-950 border border-stone-600 flex items-center justify-center"><i id="oilN" class="w-0.5 h-2.5 bg-amber-400 origin-bottom rounded"></i></div><div class="text-[8px] font-mono"><span class="text-stone-400">OIL: </span><b id="oilT" class="text-amber-300"></b></div></div>
+            <div class="flex items-center space-x-2 bg-stone-900/60 p-1 rounded border border-stone-800"><div class="w-6 h-6 rounded-full bg-stone-950 border border-stone-600 flex items-center justify-center"><i id="tmpN" class="w-0.5 h-2.5 bg-emerald-400 origin-bottom rounded"></i></div><div class="text-[8px] font-mono"><span class="text-stone-400">TEMP: </span><b id="tmpT" class="text-emerald-300"></b></div></div>
+          </div>
+        </div>
+
+        <!-- STEREO -->
+        <div class="lg:col-span-5 flex flex-col items-center">
+          <div data-a="lore" data-i="cassette-deck" class="w-full max-w-md bg-gradient-to-b from-stone-900 to-stone-950 p-2.5 sm:p-3 rounded-lg border-2 border-stone-700 relative" style="box-shadow:inset 0 2px 4px rgba(255,255,255,.08),0 12px 28px rgba(0,0,0,.8)">
+            <div class="flex items-center justify-between border-b border-stone-800 pb-1.5 mb-2 px-1">
+              <div class="flex items-center space-x-2"><span class="px-1.5 py-0.5 bg-amber-500 text-stone-950 rounded text-[9px] font-black tracking-widest font-mono">TATA STEREO</span><span class="text-[10px] text-stone-400 font-mono font-semibold">TC-9200 HI-POWER 40W×2</span></div>
+              <div class="flex items-center space-x-1.5"><i id="act" class="w-2 h-2 rounded-full"></i><span id="actL" class="text-[9px] text-stone-400 font-mono"></span></div>
+            </div>
+            <div class="grid grid-cols-12 gap-2 sm:gap-3 items-center">
+              <div class="col-span-7 bg-stone-950 p-2 rounded-md border border-stone-700 relative overflow-hidden">
+                <div class="absolute top-1 right-2 text-[8px] text-stone-500 font-mono">AUTO REVERSE</div>
+                <div class="h-16 sm:h-20 bg-gradient-to-b from-stone-900/90 to-black rounded border border-stone-600/60 p-1.5 relative overflow-hidden">
+                  <div id="tape" class="w-full h-full rounded transition-all duration-300 flex flex-col justify-between p-1.5 border border-stone-600/80">
+                    <div class="flex items-center justify-between text-[9px] font-bold text-amber-200 border-b border-amber-500/40 pb-0.5"><span id="tTitle" class="font-mono text-yellow-300 truncate max-w-[120px]"></span><span class="font-mono text-[8px] text-stone-300">SIDE A</span></div>
+                    <div class="flex items-center justify-around my-auto">
+                      <div id="sp1" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-stone-400 bg-stone-900 flex items-center justify-center relative reel"></div>
+                      <div class="flex-1 mx-2 h-4 bg-gradient-to-r from-amber-950 via-stone-900 to-amber-950 rounded flex items-center justify-center border border-amber-900/60"><i class="w-10 h-1 bg-amber-800/80 rounded-full"></i></div>
+                      <div id="sp2" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-stone-400 bg-stone-900 flex items-center justify-center relative reel"></div>
+                    </div>
+                    <div class="flex justify-between text-[7px] text-stone-400 font-mono"><span>DOLBY B-NR</span><b id="tYear" class="text-amber-400"></b><span>IEC-I NORMAL</span></div>
+                  </div>
+                  <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none -skew-x-12"></div>
+                </div>
+              </div>
+              <div class="col-span-5 flex flex-col space-y-2">
+                <div class="bg-black/90 p-2 rounded border border-stone-700">
+                  <div class="flex justify-between text-[8px] font-mono"><span id="mode" class="text-amber-500 font-bold"></span><span class="text-emerald-400 animate-pulse font-bold">● REC/PLAY</span></div>
+                  <div class="my-1 flex items-baseline justify-between"><span id="cnt" class="font-digital text-amber-400 text-lg sm:text-xl font-bold tracking-widest" style="text-shadow:0 0 8px rgba(251,191,36,.85)"></span><span id="stat" class="text-[9px] font-mono text-emerald-400 font-bold"></span></div>
+                  <div id="vu" class="space-y-1 pt-1 border-t border-stone-800"></div>
+                </div>
+                <div class="flex items-center justify-between px-1">
+                  <div class="flex flex-col items-center"><span class="text-[8px] text-stone-400 font-mono">VOLUME</span><input id="vol" type="range" min="0" max="1" step=".05" value=".75" class="w-16 h-1 accent-amber-500 cursor-pointer"></div>
+                  <div class="flex flex-col items-center"><span class="text-[8px] text-stone-400 font-mono">TUNER</span><button id="tuner" data-a="tuner"></button></div>
+                </div>
+              </div>
+            </div>
+            <div class="mt-2.5 pt-2 border-t border-stone-800 flex items-center space-x-1 sm:space-x-2 text-[10px] font-mono font-bold">
+              <button data-a="prev" class="flex-1 py-1 bg-stone-800 hover:bg-stone-700 active:translate-y-0.5 rounded border border-stone-600 text-stone-300">◀◀ REW</button>
+              <button id="play" data-a="play" class="flex-[1.5] py-1 px-2 rounded border text-[11px]"></button>
+              <button data-a="next" class="flex-1 py-1 bg-stone-800 hover:bg-stone-700 active:translate-y-0.5 rounded border border-stone-600 text-stone-300">FFWD ▶▶</button>
+              <button id="eject" data-a="eject" class="flex-1 py-1 rounded border">⏏ EJECT</button>
+            </div>
+            <div class="mt-2 pt-1.5 border-t border-stone-800/80 flex items-center justify-between text-[9px] text-stone-400"><span class="font-mono text-stone-500">CASSETTE MIX:</span><div id="trk" class="flex space-x-1"></div></div>
+          </div>
+          <div class="w-full max-w-md mt-2 flex items-center justify-between bg-stone-900/80 px-2.5 py-1.5 rounded border border-stone-800 text-[10px]"><span class="font-mono text-amber-400 font-bold">AIR HORN TUNE:</span><div id="tunes" class="flex space-x-1"></div></div>
+        </div>
+
+        <!-- SWITCHES + WHEEL -->
+        <div class="lg:col-span-3 flex flex-col items-center justify-center">
+          <div class="w-full bg-stone-950/80 p-2 rounded-lg border border-stone-800 shadow-md mb-2"><div class="text-[8px] font-mono text-stone-400 mb-1.5 text-center font-bold tracking-wider">CABIN TOGGLE SWITCHES</div><div id="tg" class="grid grid-cols-4 gap-1.5"></div></div>
+          <div class="scale-90 sm:scale-100 flex flex-col items-center">
+            <div id="wheel" class="w-52 h-52 sm:w-64 sm:h-64 md:w-80 md:h-80 rounded-full border-[18px] sm:border-[22px] md:border-[26px] border-stone-900 relative flex items-center justify-center cursor-pointer" style="box-shadow:0 20px 50px rgba(0,0,0,.95);background:radial-gradient(circle,#292524,#1c1917);transition:transform .2s">
+              <div class="absolute left-0 right-1/2 h-5 sm:h-6 bg-gradient-to-b from-stone-500 via-stone-400 to-stone-700 shadow-md"><div class="h-[2px] bg-white/40 mb-1"></div><div class="flex justify-around items-center h-2 sm:h-3"><i class="w-2.5 h-2.5 rounded-full bg-stone-900"></i><i class="w-2 h-2 rounded-full bg-stone-900"></i></div></div>
+              <div class="absolute right-0 left-1/2 h-5 sm:h-6 bg-gradient-to-b from-stone-500 via-stone-400 to-stone-700 shadow-md"><div class="h-[2px] bg-white/40 mb-1"></div><div class="flex justify-around items-center h-2 sm:h-3"><i class="w-2 h-2 rounded-full bg-stone-900"></i><i class="w-2.5 h-2.5 rounded-full bg-stone-900"></i></div></div>
+              <div class="absolute top-1/2 bottom-0 w-5 sm:w-6 bg-gradient-to-r from-stone-500 via-stone-400 to-stone-700 shadow-md"></div>
+              <button id="horn" class="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full z-20 flex flex-col items-center justify-center p-2 shadow-2xl border-4 transition-all duration-75" title="Press horn (or hold Space)">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-500 flex items-center justify-center border-2 border-amber-300"><span class="text-stone-950 font-black text-xl sm:text-2xl font-mono">T</span></div>
+                <span class="text-[9px] sm:text-[10px] font-bold text-amber-300 tracking-widest font-mono mt-1">HORN</span><span class="text-[7px] text-stone-400 font-mono">PRESS / SPACE</span>
+              </button>
+              <div class="absolute inset-0 rounded-full border border-white/20 pointer-events-none"></div>
+            </div>
+            <div class="w-14 sm:w-16 h-12 bg-gradient-to-r from-stone-800 via-stone-700 to-stone-900 -mt-6 rounded-b-lg border-x-2 border-b-2 border-stone-600 shadow-xl"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- MODAL -->
+<div id="modal" class="hidden fixed inset-0 z-[60] items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md"></div>
+</div>
+
+<script>
+const $=i=>document.getElementById(i),S={engineOn:true,rpm:720,speed:45,rev:false,wipers:false,fan:true,fog:false,dip:false,haz:false,view:'cabin',env:'sunny-bazaar',play:true,vol:.75,track:0,tune:'nagin',horn:false,muted:false,eject:false,radio:false};
+const ENVS=[['sunny-bazaar','Bazaar (Day)','☀️'],['monsoon-ghats','Monsoon','🌧️'],['neon-night','Night Dhaba','🌙'],['sunset-desert','Sunset','🌅']];
+const VIEWS=[['cabin','Full Cabin','scale(1)'],['windshield','Windshield','scale(1.22) translateY(14%)'],['cassette','Stereo Close-up','scale(1.35) translateY(-22%) translateX(-5%)']];
+const TRACKS=[['Dhaba Dholak Express','1998','bg-amber-900/90'],['Golden 90s Romance','1995','bg-rose-950/90'],['Midnight Trucker Ghazal','1999','bg-slate-900'],['Ghat Mastana Qawwali','2001','bg-emerald-950']];
+const TUNES=[['nagin','Nagin'],['triple','3-Tone'],['tata-classic','Tata Dual'],['air-blast','Blast']];
+const TOGS=[['dip','DIPPER','amber','bg-amber-400'],['wipers','WIPER','emerald','bg-emerald-400'],['fog','FOG LAMP','yellow','bg-yellow-400'],['haz','HAZARD','red','bg-red-500']];
+const NAMES={'sunny-bazaar':'Old Delhi Chandni Chowk Bazaar','monsoon-ghats':'Western Ghats Monsoon Highway, Maharashtra','neon-night':'Grand Trunk Road (NH-44), Sher-e-Punjab Dhaba','sunset-desert':'Thar Desert Highway, Jaisalmer'};
+const LORE=[
+['nimbu-mirchi','Nimbu-Mirchi & Nazar Battu (नींबू-मिर्ची)','The Sacred Anti-Evil-Eye Ward','🛡️','Protection','One yellow lemon and seven green chilies on black thread, often with a lump of coal, hang on almost every Indian truck to ward off the evil eye on long, hazardous night journeys. Drivers replace them every Saturday at roadside dhabas.'],
+['prayer-flags','Tibetan Prayer Flags (लुंगता)','Blessings on the Himalayan Highways','🧭','Spirituality','Five colors stand for the elements: Blue (Sky), White (Air), Red (Fire), Green (Water), Yellow (Earth). Wind flutters the flags, believed to carry the printed mantras into the air to bring peace and protect the driver.'],
+['parandi','Bridal Tassels (Parandi / Latkan) & Pom-Poms','Dressing the Truck as a Bride (दुल्हन)','❤️','Art & Tradition','The truck is an extension of the driver’s home, traditionally treated like a Dulhan. Red-and-gold latkans with tiny ghungroo bells, gota lace and pom-poms celebrate prosperity and joyful homecoming.'],
+['brass-idol','Pooja Sthan: Brass Deity & Marigold Petals','Divine Guardians of the Highway','✨','Devotion','Before a 2,000 km journey, truckers pray. On a red velvet asana rests Ganesha (remover of obstacles) or Hanuman (protector against fatigue and accidents), with fresh marigold petals and an incense stick.'],
+['cassette-deck','Retro 1990s Cassette Deck Stereo','The Lifeline of Long-Haul Haulers','🎵','Culture','Before smartphones, magnetic-tape cassette players were the heart of Indian trucks: Punjabi dholak remixes, Mukesh and Kishore Kumar ghazals and fast qawwalis kept drivers alert through foggy ghats.'],
+['horn-ok-please','Horn OK Please & Truck Typography','India’s Legendary Road Philosophy','🛡️','Highway Lore','With limited rear visibility, “HORN OK PLEASE” invited overtaking vehicles to honk. It became a world-famous emblem of Indian street culture, with witty slogans like “Buri Nazar Wale Tera Munh Kala”.']];
+
+/* ---------- AUDIO ---------- */
+const A=(()=>{let c,eg,o1,o2,o3,nz,eng=false,mg,hs,mi,mp=false,vol=.75,ti=0,hn=[];
+const X=()=>{c=c||new(window.AudioContext||window.webkitAudioContext)();c.state==='suspended'&&c.resume();return c};
+const click=(s=true)=>{const x=X(),t=x.currentTime,o=x.createOscillator(),g=x.createGain();o.type='triangle';o.frequency.setValueAtTime(s?1200:800,t);o.frequency.exponentialRampToValueAtTime(140,t+.04);g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+.045);o.connect(g);g.connect(x.destination);o.start(t);o.stop(t+.05)};
+const noise=(n,m=1)=>{const b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*m;const s=c.createBufferSource();s.buffer=b;s.loop=true;return s};
+const startEngine=()=>{const x=X();if(eng)return;click();const t=x.currentTime;
+ const co=x.createOscillator(),cg=x.createGain();co.type='sawtooth';co.frequency.setValueAtTime(35,t);co.frequency.linearRampToValueAtTime(75,t+.6);cg.gain.setValueAtTime(.4,t);cg.gain.exponentialRampToValueAtTime(.01,t+.7);co.connect(cg);cg.connect(x.destination);co.start(t);co.stop(t+.7);
+ eg=x.createGain();eg.gain.setValueAtTime(.01,t);eg.gain.linearRampToValueAtTime(.18,t+.75);
+ const f=x.createBiquadFilter();f.type='lowpass';f.frequency.value=140;f.Q.value=3.5;
+ const mk=(ty,fr)=>{const o=x.createOscillator();o.type=ty;o.frequency.value=fr;o.connect(f);o.start(t);return o};
+ o1=mk('sawtooth',28);o2=mk('triangle',56);o3=mk('sine',14);
+ nz=noise(x.sampleRate*2);const nf=x.createBiquadFilter();nf.type='bandpass';nf.frequency.value=110;nf.Q.value=2;const ng=x.createGain();ng.gain.value=.08;nz.connect(nf);nf.connect(ng);ng.connect(f);nz.start(t);
+ f.connect(eg);eg.connect(x.destination);eng=true};
+const stopEngine=()=>{if(!c||!eng)return;click(false);const g=eg,a=[o1,o2,o3,nz];g.gain.linearRampToValueAtTime(.001,c.currentTime+.4);eng=false;setTimeout(()=>a.forEach(n=>{try{n.stop()}catch(e){}}),450)};
+const rpm=r=>{if(!c||!eng)return;const n=(r-600)/2400,b=28+n*62,t=c.currentTime;o1.frequency.setTargetAtTime(b,t,.08);o2.frequency.setTargetAtTime(b*2,t,.08);o3.frequency.setTargetAtTime(b*.5,t,.08);eg.gain.setTargetAtTime(.18+n*.14,t,.08)};
+const hornTone=(t,d,f,dest)=>{const o=c.createOscillator(),p=c.createOscillator(),g=c.createGain();o.type='sawtooth';o.frequency.value=f;p.type='triangle';p.frequency.value=f*1.004;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.35,t+.03);g.gain.setValueAtTime(.35,t+d-.04);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);p.connect(g);g.connect(dest);o.start(t);p.start(t);o.stop(t+d+.05);p.stop(t+d+.05);hn.push(o,p,g)};
+const stopHorn=()=>{hn.forEach(n=>{try{n.stop&&n.stop();n.disconnect()}catch(e){}});hn=[]};
+const horn=tune=>{const x=X();stopHorn();const t=x.currentTime,m=x.createGain();m.gain.setValueAtTime(.45,t);m.connect(x.destination);hn.push(m);
+ const seq=l=>{let e=0;l.forEach(([f,d])=>{hornTone(t+e,d,f,m);e+=d})};
+ if(tune==='nagin')seq([[659.25,.14],[739.99,.14],[783.99,.28],[739.99,.14],[659.25,.14],[622.25,.22],[659.25,.45]]);
+ else if(tune==='triple')seq([[392,.2],[523.25,.2],[659.25,.7]]);
+ else if(tune==='tata-classic')[466.16,587.33,698.46].forEach(f=>hornTone(t,.9,f,m));
+ else[220,277.18,329.63].forEach(f=>hornTone(t,1.1,f,m));
+ return()=>{m.gain.linearRampToValueAtTime(.001,x.currentTime+.08);setTimeout(stopHorn,100)}};
+const harm=(t,f,d)=>{const x=c,a=x.createOscillator(),b=x.createOscillator(),g=x.createGain(),fl=x.createBiquadFilter();a.type=b.type='sawtooth';a.frequency.value=f;b.frequency.value=f*1.003;fl.type='lowpass';fl.frequency.value=1400;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.18,t+.03);g.gain.setValueAtTime(.16,t+d-.03);g.gain.exponentialRampToValueAtTime(.0001,t+d);a.connect(fl);b.connect(fl);fl.connect(g);g.connect(mg);[a,b].forEach(o=>{o.start(t);o.stop(t+d+.02)})};
+const hit=(ty,f0,f1,d,v)=>{const x=c,t=x.currentTime,o=x.createOscillator(),g=x.createGain();o.type=ty;o.frequency.setValueAtTime(f0,t);f1&&o.frequency.exponentialRampToValueAtTime(f1,t+d*.6);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(mg);o.start(t);o.stop(t+d+.02)};
+const step=(k,s)=>{if(!c||!mg)return;const t=c.currentTime;
+ if(s%4===0||(k===0&&s%8===6))hit('sine',110,45,.2,.45);if(s%8===4)hit('triangle',380,160,.1,.28);if(s%2===0)hit('square',2400,0,.06,.06);
+ if(k===0){const sc=[261.63,293.66,329.63,392,440,523.25],m=[0,2,4,2,0,5,4,3,0,2,4,5,4,2,1,0];if(s%2===0)harm(t,sc[m[s%16]],.22)}
+ else if(k===1){const r=[220,261.63,196,246.94][Math.floor(s/8)%4];if(s%4===0){harm(t,r,.45);harm(t,r*1.5,.45)}}
+ else if(k===2){const d=[146.83,174.61,220,293.66,349.23];if(s%8===0){harm(t,d[0],.85);harm(t,d[2],.85)}if(s%4===2)harm(t,d[s%5],.35)}
+ else{const q=[293.66,329.63,369.99,440,493.88];if(s%2===1)harm(t,q[s%5],.16)}};
+const stopTape=()=>{if(c)click(false);clearInterval(mi);mi=null;mp=false;try{hs&&hs.stop()}catch(e){}hs=null};
+const playTape=k=>{const x=X();stopTape();ti=k;click();mg=x.createGain();mg.gain.value=vol;mg.connect(x.destination);
+ hs=noise(x.sampleRate,.015);const hf=x.createBiquadFilter();hf.type='highpass';hf.frequency.value=3200;const hg=x.createGain();hg.gain.value=.04;hs.connect(hf);hf.connect(hg);hg.connect(mg);hs.start();
+ mp=true;let s=0;const bpm=[124,112,88,132][k];mi=setInterval(()=>{if(mp){step(ti,s);s=(s+1)%32}},30000/bpm)};
+return{click,startEngine,stopEngine,rpm,horn,stopHorn,playTape,stopTape,vol:v=>{vol=v;mg&&c&&mg.gain.setTargetAtTime(v,c.currentTime,.05)}}})();
+
+/* ---------- SCENES ---------- */
+const SC={
+'sunny-bazaar':`<div class="absolute inset-0 bg-gradient-to-b from-amber-200 via-orange-100 to-amber-300"><div class="absolute inset-0" style="background:radial-gradient(ellipse at 75% 15%,#fef3c7 0%,rgba(251,191,36,.6) 45%,rgba(217,119,6,.85) 100%)"></div>
+<svg class="absolute bottom-0 w-full h-[75%] opacity-85" style="filter:blur(1.2px)" preserveAspectRatio="none" viewBox="0 0 1200 600"><defs><linearGradient id="bb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#78350f" stop-opacity=".75"/><stop offset="1" stop-color="#451a03" stop-opacity=".95"/></linearGradient><linearGradient id="cy"><stop offset="0" stop-color="#ea580c"/><stop offset=".5" stop-color="#facc15"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs>
+<path d="M 0,280 L 120,260 L 120,210 Q 150,190 180,210 L 180,260 L 260,250 L 320,220 L 380,250 L 520,240 L 580,200 Q 620,170 660,200 L 660,240 L 800,230 L 880,210 L 960,240 L 1100,220 L 1200,240 L 1200,600 L 0,600 Z" fill="url(#bb)"/>
+<polygon points="60,320 220,320 200,360 40,360" fill="url(#cy)" opacity=".9"/><polygon points="280,310 440,310 420,350 260,350" fill="#dc2626" opacity=".85"/><polygon points="480,330 640,330 620,365 460,365" fill="#0284c7" opacity=".85"/><polygon points="720,315 890,315 870,355 700,355" fill="#16a34a" opacity=".85"/><polygon points="940,325 1120,325 1100,365 920,365" fill="#f59e0b" opacity=".9"/>
+<path d="M 0,160 Q 300,260 600,190 Q 900,270 1200,170" fill="none" stroke="#292524" stroke-width="1.5" opacity=".6"/><path d="M 0,180 Q 400,290 800,210 Q 1000,280 1200,200" fill="none" stroke="#292524" stroke-width="1.2" opacity=".5"/><path d="M 0,140 Q 250,220 500,170 Q 850,240 1200,150" fill="none" stroke="#292524" stroke-width="1.5" opacity=".4"/>
+<g transform="translate(140,370) scale(.9)"><path d="M 20,70 L 40,20 L 110,20 L 130,50 L 130,90 L 10,90 Z" fill="#1c1917"/><path d="M 45,26 L 85,26 L 80,55 L 40,55 Z" fill="#fef08a" opacity=".6"/><circle cx="35" cy="90" r="14" fill="#0c0a09"/><circle cx="110" cy="90" r="14" fill="#0c0a09"/><rect x="25" y="45" width="85" height="15" fill="#eab308"/><rect x="25" y="60" width="85" height="25" fill="#15803d"/></g>
+<g transform="translate(680,390) scale(.75)"><ellipse cx="60" cy="30" rx="40" ry="15" fill="#b45309"/><circle cx="45" cy="25" r="8" fill="#f59e0b"/><circle cx="65" cy="22" r="9" fill="#ea580c"/><circle cx="80" cy="27" r="7" fill="#fbbf24"/><rect x="56" y="30" width="8" height="60" fill="#78350f"/></g>
+<path d="M 0,440 L 1200,440 L 1200,600 L 0,600 Z" fill="#292524"/><path d="M 580,450 L 620,450 L 650,600 L 550,600 Z" fill="#eab308" opacity=".4"/></svg>
+<div class="absolute top-0 right-0 w-[85%] h-[85%] opacity-55" style="background:radial-gradient(circle at 85% 15%,rgba(255,248,220,.95) 0%,rgba(253,224,71,.45) 25%,rgba(245,158,11,.2) 55%,transparent 75%);mix-blend-mode:screen"></div>
+<div class="absolute -top-20 right-10 w-[120%] h-[120%] opacity-30" style="transform:rotate(-25deg);background:repeating-linear-gradient(90deg,transparent 0,transparent 40px,rgba(255,240,180,.4) 40px,rgba(255,240,180,.4) 90px);-webkit-mask-image:radial-gradient(circle at 80% 20%,black 20%,transparent 80%);mask-image:radial-gradient(circle at 80% 20%,black 20%,transparent 80%)"></div></div>`,
+'monsoon-ghats':`<div class="absolute inset-0 bg-gradient-to-b from-slate-700 via-emerald-950 to-slate-900"><svg class="absolute bottom-0 w-full h-[80%] opacity-70" style="filter:blur(1px)" preserveAspectRatio="none" viewBox="0 0 1200 600"><path d="M 0,320 Q 250,180 500,280 Q 750,150 1000,260 L 1200,220 L 1200,600 L 0,600 Z" fill="#064e3b" opacity=".6"/><path d="M 0,380 Q 350,260 700,340 Q 950,280 1200,360 L 1200,600 L 0,600 Z" fill="#022c22" opacity=".8"/><line x1="480" y1="280" x2="485" y2="380" stroke="#bae6fd" stroke-width="4" opacity=".6" stroke-dasharray="8 4"/><path d="M 0,480 L 1200,480 L 1200,600 L 0,600 Z" fill="#0f172a"/><path d="M 590,480 L 610,480 L 630,600 L 570,600 Z" fill="#38bdf8" opacity=".5"/></svg><div class="absolute inset-0 bg-sky-950/40" style="mix-blend-mode:multiply"></div></div>`,
+'neon-night':`<div class="absolute inset-0 bg-gradient-to-b from-stone-950 via-slate-950 to-stone-900"><div class="absolute top-[28%] left-[18%] z-10 flex flex-col items-center"><div class="px-4 py-1.5 rounded-lg border-2 border-red-500 bg-red-950/80 animate-pulse" style="box-shadow:0 0 35px rgba(239,68,68,.9)"><span class="font-devanagari text-red-400 font-bold text-lg">शेर-ए-पंजाब ढाबा</span></div><div class="mt-1 px-2 py-0.5 rounded border border-amber-400 bg-amber-950/60" style="box-shadow:0 0 20px rgba(251,191,36,.8)"><span class="text-[10px] text-amber-300 font-mono font-bold tracking-widest">24 HRS HOT CHAI & TADKA</span></div></div><div class="absolute bottom-[28%] right-[22%] z-10 flex items-center space-x-12"><i class="w-5 h-5 rounded-full bg-yellow-200" style="box-shadow:0 0 45px 20px rgba(254,240,138,.95)"></i><i class="w-5 h-5 rounded-full bg-yellow-200" style="box-shadow:0 0 45px 20px rgba(254,240,138,.95)"></i></div><div class="absolute top-0 inset-x-0 h-40" style="background:radial-gradient(ellipse at top,rgba(56,189,248,.15),transparent 80%)"></div></div>`,
+'sunset-desert':`<div class="absolute inset-0 bg-gradient-to-b from-purple-900 via-rose-800 to-amber-700"><svg class="absolute bottom-0 w-full h-[65%] opacity-85" preserveAspectRatio="none" viewBox="0 0 1200 600"><path d="M 0,350 Q 300,240 600,320 Q 900,250 1200,300 L 1200,600 L 0,600 Z" fill="#450a0a" opacity=".7"/><path d="M 0,420 Q 400,330 800,400 Q 1050,340 1200,410 L 1200,600 L 0,600 Z" fill="#2d0606"/></svg><div class="absolute top-[32%] left-[48%] -translate-x-1/2 w-28 h-28 rounded-full bg-gradient-to-t from-orange-500 to-yellow-300" style="box-shadow:0 0 70px rgba(249,115,22,.85)"></div></div>`};
+
+/* ---------- BUILD STATIC PARTS ---------- */
+document.querySelectorAll('.rivets').forEach(e=>{e.innerHTML='<div class="h-full flex flex-col justify-around items-center py-6">'+'<i class="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-stone-600 to-stone-950 border border-amber-600/60"></i>'.repeat(6)+'</div>'});
+document.querySelectorAll('.reel').forEach(e=>{e.innerHTML=[0,60,120,180,240,300].map(r=>`<i class="absolute w-1 h-3 bg-stone-300 rounded-sm" style="transform:rotate(${r}deg)"></i>`).join('')+'<i class="w-4 h-4 rounded-full bg-stone-950 border border-stone-500 z-10"></i>'});
+const FL=[['bg-sky-600 border-sky-400','ཨོཾ'],['bg-stone-100 text-stone-900 border-stone-300','མ་'],['bg-rose-600 border-rose-400','ཎི'],['bg-emerald-600 border-emerald-400','པད'],['bg-amber-400 text-amber-950 border-amber-300','མེ'],['bg-sky-600 border-sky-400','ཧཱུྃ'],['bg-stone-100 text-stone-900 border-stone-300','ॐ'],['bg-rose-600 border-rose-400','शांति'],['bg-emerald-600 border-emerald-400','शुभ'],['bg-amber-400 text-amber-950 border-amber-300','लाभ']];
+$('flags').innerHTML=FL.map((f,i)=>`<div data-a="lore" data-i="prayer-flags" title="Tibetan prayer flag - click to inspect" class="flag w-6 sm:w-8 md:w-11 h-9 sm:h-12 md:h-14 ${f[0]} shadow-lg border-t-2 flex flex-col items-center justify-between p-1 cursor-pointer hover:scale-110" style="animation-delay:${i*.18}s"><span class="text-[10px] md:text-xs font-bold leading-none">${f[1]}</span><div class="w-full flex justify-between opacity-70"><i class="w-[2px] h-2 bg-current"></i><i class="w-[2px] h-3 bg-current"></i><i class="w-[2px] h-1.5 bg-current"></i><i class="w-[2px] h-2.5 bg-current"></i></div></div>`).join('');
+$('garland').innerHTML=[0,1].map(()=>'<div class="flex -space-x-1">'+Array.from({length:9},(_,i)=>`<i class="w-3 sm:w-4 h-3 sm:h-4 rounded-full shadow ${i%2?'bg-orange-500':'bg-yellow-400'}" style="margin-top:${Math.sin(i/8*Math.PI)*10}px"></i>`).join('')+'</div>').join('');
+const tassel=d=>`<div data-a="lore" data-i="parandi" class="tas cursor-pointer flex flex-col items-center hover:scale-105" style="animation-delay:${d}s" title="Bridal latkan / parandi tassel"><i class="w-0.5 h-6 bg-amber-400"></i><div class="w-5 h-5 rounded-full bg-gradient-to-br from-amber-300 to-yellow-600 ring-2 ring-red-600 flex items-center justify-center"><i class="w-2.5 h-2.5 bg-stone-100 rounded-full"></i></div><i class="w-0.5 h-3 bg-amber-400"></i><div class="w-6 h-7 bg-gradient-to-b from-red-600 via-rose-700 to-red-900 rounded-b-md border-t-2 border-amber-300 relative flex flex-col items-center justify-end pb-1"><i class="absolute top-1 inset-x-0 h-1 bg-amber-300"></i><i class="w-2 h-2 rounded-full bg-amber-300"></i></div><div class="w-5 flex justify-center space-x-[2px] pt-0.5"><i class="w-[2px] h-6 bg-red-600"></i><i class="w-[2px] h-8 bg-amber-400"></i><i class="w-[2px] h-7 bg-red-700"></i><i class="w-[2px] h-9 bg-yellow-400"></i><i class="w-[2px] h-6 bg-red-600"></i></div></div>`;
+const pom=c=>`<div class="flex space-x-1.5 pt-2">${c.map((k,i)=>`<i class="${i==1?'w-3.5 h-3.5 mt-1':'w-4 h-4'} rounded-full ${k} shadow-md"></i>`).join('')}</div>`;
+const chilies=[[-18,'h-8 sm:h-10'],[-12,'h-10 sm:h-12'],[-6,'h-9 sm:h-11'],[0,'h-11 sm:h-14'],[6,'h-10 sm:h-12'],[14,'h-9 sm:h-11'],[22,'h-8 sm:h-10']].map(([t,l])=>`<div class="flex flex-col items-center" style="transform:rotate(${t}deg)"><i class="w-0.5 h-1.5 bg-emerald-950"></i><i class="w-1.5 sm:w-2 ${l} rounded-b-full bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-700 border-t border-emerald-400" style="clip-path:polygon(0 0,100% 0,80% 85%,50% 100%,20% 85%)"></i></div>`).join('');
+$('hang').innerHTML=tassel(0)+pom(['bg-fuchsia-600','bg-amber-400','bg-teal-500'])+`<div id="charm" data-a="lore" data-i="nimbu-mirchi" class="pointer-events-auto cursor-grab flex flex-col items-center group" style="transform-origin:top center" title="Nimbu-Mirchi - drag or click!"><i class="w-0.5 h-8 sm:h-11 bg-stone-900"></i><i class="w-3.5 h-3.5 bg-stone-900 rounded-sm border border-stone-700 -mb-0.5 group-hover:ring-2 ring-amber-400"></i><div class="w-6 h-7 sm:w-7 sm:h-8 bg-gradient-to-br from-yellow-300 via-amber-300 to-yellow-500 shadow-lg border border-yellow-200 relative flex items-center justify-center" style="border-radius:50% 50% 45% 45%"><i class="w-1.5 h-1 bg-yellow-600 rounded-full opacity-60"></i></div><i class="w-0.5 h-2 bg-stone-900"></i><div class="flex -space-x-1 items-start pt-0.5">${chilies}</div><div class="mt-1 px-1.5 py-0.5 bg-stone-900/90 text-amber-300 border border-amber-600/50 rounded text-[9px] font-devanagari opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">बुरी नज़र वाले तेरा मुंह काला</div></div>`+pom(['bg-amber-400','bg-rose-600','bg-cyan-500'])+tassel(.6);
+$('envs').innerHTML=ENVS.map(e=>`<button data-a="env" data-i="${e[0]}" title="Switch to ${e[1]}" class="px-2 sm:px-2.5 py-1 rounded-lg flex items-center space-x-1 text-[11px] font-mono transition-all"><span>${e[2]}</span><span class="hidden sm:inline">${e[1]}</span></button>`).join('');
+$('views').innerHTML=VIEWS.map(v=>`<button data-a="view" data-i="${v[0]}" class="px-2 py-0.5 rounded text-[10px] font-mono transition-colors">${v[1]}</button>`).join('');
+$('trk').innerHTML=TRACKS.map((t,i)=>`<button data-a="track" data-i="${i}" class="px-1.5 py-0.5 rounded text-[8px] font-mono transition-colors">#${i+1}</button>`).join('');
+$('tunes').innerHTML=TUNES.map(t=>`<button data-a="tune" data-i="${t[0]}" class="px-1.5 py-0.5 rounded font-mono text-[9px] transition-colors">${t[1]}</button>`).join('');
+$('tg').innerHTML=TOGS.map(t=>`<button data-a="tog" data-i="${t[0]}" title="${t[1]}" class="p-1 rounded flex flex-col items-center justify-between border transition-all"><span class="text-[7px] font-mono font-bold">${t[1]}</span><i class="w-2 h-4 rounded-sm border transition-transform"></i><span class="text-[6px] font-mono"></span></button>`).join('');
+$('vu').innerHTML=['CH-L','CH-R'].map(ch=>`<div class="flex items-center space-x-1"><span class="text-[7px] font-mono text-stone-400 w-5">${ch}</span><div class="flex space-x-[2px] flex-1">${'<i class="h-1.5 flex-1 rounded-[1px]"></i>'.repeat(9)}</div></div>`).join('');
+
+/* ---------- UI SYNC ---------- */
+let inited=false,hornStop=null,counter=142,vu=[4,5],radioFreq=98.3;
+const B='px-3 py-1.5 rounded-lg flex items-center space-x-1.5 font-mono text-xs font-bold transition-all shadow ';
+function ui(){
+ const on=S.engineOn;
+ $('engL').textContent=on?'ENGINE RUNNING':'IGNITION KEY';
+ $('bEng').className=B+(on?'bg-emerald-600 text-stone-950 border border-emerald-400 shadow-[0_0_12px_#34d399]':'bg-stone-800 text-stone-300 hover:bg-stone-700 border border-stone-600');
+ $('accL').textContent=S.rev?'⏱ REVVING...':'⏱ ACCELERATE [W]';
+ $('bAcc').disabled=!on;
+ $('bAcc').className=B+(!on?'bg-stone-900 text-stone-600 border border-stone-800 cursor-not-allowed':S.rev?'bg-amber-500 text-stone-950 border border-amber-300 scale-95 shadow-[0_0_15px_#f59e0b]':'bg-stone-800 hover:bg-amber-950 text-amber-300 border border-amber-800/60 active:scale-95');
+ document.querySelectorAll('[data-a=env]').forEach(b=>{const a=b.dataset.i===S.env;b.className=b.className.replace(/ ?(bg-stone-800 text-amber-300 font-bold border border-amber-500\/80 shadow-md|text-stone-400 hover:text-stone-200)/g,'')+' '+(a?'bg-stone-800 text-amber-300 font-bold border border-amber-500/80 shadow-md':'text-stone-400 hover:text-stone-200')});
+ document.querySelectorAll('[data-a=view]').forEach(b=>{b.className='px-2 py-0.5 rounded text-[10px] font-mono transition-colors '+(S.view===b.dataset.i?'bg-amber-600 text-white font-bold':'text-stone-400 hover:text-stone-200')});
+ $('bMute').textContent=S.muted?'🔇':'🔊';
+ document.body.classList.toggle('rev',S.rev);
+ $('cam').style.transform=VIEWS.find(v=>v[0]===S.view)[2];
+ $('vp').className='relative w-full h-full '+(S.rev?'animate-vibe-rev':on?'animate-vibe-idle':'');
+ $('flare').style.display=S.env==='sunny-bazaar'?'block':'none';
+ $('glow').style.opacity=S.dip?.7:S.fog?.4:0;
+ $('fanB').className='w-full h-full flex items-center justify-center '+(S.fan?'spin-reel':'');
+ $('fanC').style.transform=S.fan?'rotate(2deg)':'';
+ $('rib').className='w-2 h-7 bg-red-600 origin-top shadow '+(S.fan?'animate-vibe-rev rotate-12':'rotate-2');
+ $('pwr').textContent=on?'12V ON':'IGNITION OFF';
+ $('oilN').style.transform=`rotate(${on?25:-45}deg)`;$('tmpN').style.transform=`rotate(${on?10:-50}deg)`;
+ $('oilT').textContent=on?'4.2 BAR':'0.0';$('tmpT').textContent=on?'82°C':'24°C';
+ // stereo
+ const tr=TRACKS[S.track];
+ $('tape').className='w-full h-full rounded transition-all duration-300 flex flex-col justify-between p-1.5 border border-stone-600/80 '+(S.eject?'translate-y-8 opacity-40 bg-amber-950/80':tr[2]);
+ $('tTitle').textContent=tr[0];$('tYear').textContent=tr[1];
+ ['sp1','sp2'].forEach(i=>$(i).classList.toggle('spin-reel',S.play&&!S.eject));
+ $('act').className='w-2 h-2 rounded-full '+(S.play?'bg-emerald-400 shadow-[0_0_8px_#34d399]':'bg-stone-700');
+ $('actL').textContent=S.play?'ACTIVE':'STANDBY';
+ $('mode').textContent=S.radio?'RADIO AM/FM':'CASSETTE TAPE';
+ $('stat').textContent=S.play?'PLAY ▶':'STOP ■';
+ $('play').textContent=S.play?'❚❚ PAUSE':'▶ PLAY';
+ $('play').className='flex-[1.5] py-1 px-2 rounded border text-[11px] shadow transition-all '+(S.play?'bg-amber-500 text-stone-950 border-amber-300 shadow-[0_0_12px_rgba(245,158,11,.5)]':'bg-stone-800 hover:bg-stone-700 border-stone-600 text-amber-400');
+ $('eject').className='flex-1 py-1 rounded border '+(S.eject?'bg-rose-900/80 text-rose-300 border-rose-600':'bg-stone-800 hover:bg-stone-700 text-stone-400 border-stone-600');
+ $('tuner').textContent=S.radio?'FM '+radioFreq.toFixed(1):'TAPE';
+ $('tuner').className='px-1.5 py-0.5 text-[8px] font-mono font-bold rounded border '+(S.radio?'bg-amber-500 text-stone-950 border-amber-400':'bg-stone-800 text-stone-300 border-stone-600');
+ document.querySelectorAll('[data-a=track]').forEach(b=>b.className='px-1.5 py-0.5 rounded text-[8px] font-mono transition-colors '+(S.track==b.dataset.i?'bg-amber-600 text-white font-bold':'bg-stone-800 text-stone-400 hover:text-stone-200'));
+ document.querySelectorAll('[data-a=tune]').forEach(b=>b.className='px-1.5 py-0.5 rounded font-mono text-[9px] transition-colors '+(S.tune===b.dataset.i?'bg-amber-500 text-stone-950 font-bold shadow':'bg-stone-800 text-stone-400 hover:text-stone-200'));
+ document.querySelectorAll('[data-a=tog]').forEach((b,i)=>{const [k,,c,bar]=TOGS[i],v=S[k];b.className='p-1 rounded flex flex-col items-center justify-between border transition-all '+(v?`bg-${c}-600/30 border-${c}-400 text-${c}-300 ${k==='haz'?'animate-pulse':''}`:'bg-stone-900 border-stone-700 text-stone-400');b.children[1].className='w-2 h-4 rounded-sm border transition-transform '+(v?bar+' -translate-y-0.5':'bg-stone-600 translate-y-0.5');b.children[2].textContent=v?(k==='haz'?'BLINK':'ON'):'OFF'});
+ $('horn').className='w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full z-20 flex flex-col items-center justify-center p-2 shadow-2xl border-4 transition-all duration-75 '+(S.horn?'scale-95 bg-stone-950 border-amber-500 shadow-[0_0_30px_#f59e0b]':'bg-gradient-to-br from-stone-800 via-stone-900 to-black border-stone-600 hover:border-amber-400');
+ $('wheel').classList.toggle('animate-vibe-idle',on);
+}
+function setScene(){$('scene').innerHTML=SC[S.env];ui()}
+function vuDraw(){document.querySelectorAll('#vu>div').forEach((r,ci)=>[...r.lastElementChild.children].forEach((b,i)=>{const a=i<(vu[ci]||0);b.className='h-1.5 flex-1 rounded-[1px] transition-all duration-75 '+(a?(i>=7?'bg-red-500 shadow-[0_0_6px_#ef4444]':i>=5?'bg-amber-400 shadow-[0_0_6px_#fbbf24]':'bg-emerald-400 shadow-[0_0_6px_#34d399]'):'bg-stone-800')}))}
+
+/* ---------- ACTIONS ---------- */
+function init(){if(inited)return;inited=true;if(S.engineOn&&!S.muted)A.startEngine();if(S.play&&!S.muted)A.playTape(S.track)}
+function hornDown(){init();if(S.horn)return;S.horn=true;if(!S.muted)hornStop=A.horn(S.tune);ui()}
+function hornUp(){S.horn=false;hornStop&&hornStop();hornStop=null;ui()}
+function toggleEngine(){init();S.engineOn=!S.engineOn;S.rev=false;if(S.engineOn){!S.muted&&A.startEngine()}else A.stopEngine();ui()}
+function togglePlay(){init();S.play=!S.play;if(S.play){!S.muted&&A.playTape(S.track)}else A.stopTape();ui()}
+function selectTrack(i){init();S.track=i;S.play=true;S.eject=false;!S.muted&&A.playTape(i);ui()}
+function toggleMute(){S.muted=!S.muted;if(S.muted){A.stopEngine();A.stopTape();A.stopHorn()}else{S.engineOn&&A.startEngine();S.play&&A.playTape(S.track)}ui()}
+function openModal(html){const m=$('modal');m.innerHTML=html;m.classList.remove('hidden');m.classList.add('flex')}
+function closeModal(){const m=$('modal');m.classList.add('hidden');m.classList.remove('flex')}
+function lore(active){openModal(`<div class="w-full max-w-3xl max-h-[88vh] bg-gradient-to-b from-stone-900 to-stone-950 rounded-2xl border-2 border-amber-600/60 shadow-2xl flex flex-col overflow-hidden"><div class="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-amber-950/40"><div><h2 class="text-lg font-bold text-amber-300 font-devanagari">🚛 Indian Truck Interior Decor & Highway Lore</h2><p class="text-xs text-stone-400 font-mono">Cultural symbolism of the classic Tata cabin traditions</p></div><button data-a="close" class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700">✕</button></div><div class="p-4 sm:p-6 overflow-y-auto"><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${LORE.map(l=>`<div class="p-4 rounded-xl bg-stone-900/90 border ${active===l[0]?'border-amber-400 ring-2 ring-amber-400/40 bg-amber-950/30':'border-stone-800'}"><div class="flex items-center justify-between mb-2"><div class="flex items-center space-x-2"><span class="p-1.5 rounded-lg border border-amber-400/60 bg-black/40">${l[3]}</span><div><h3 class="text-sm font-bold text-stone-100">${l[1]}</h3><div class="text-[10px] text-amber-400 font-mono">${l[2]}</div></div></div><span class="text-[9px] px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 font-mono ml-1">${l[4]}</span></div><p class="text-xs text-stone-300 leading-relaxed opacity-90">${l[5]}</p></div>`).join('')}</div><div class="mt-4 p-3 rounded-xl bg-gradient-to-r from-red-950/50 via-amber-950/40 to-red-950/50 border border-amber-600/40 text-center"><span class="font-devanagari text-yellow-300 text-sm font-bold">"गाड़ी तो हमारी मंदिर है, और सड़क हमारी ज़िंदगी!"</span><div class="text-[10px] text-stone-400 font-mono mt-0.5">("The truck is our temple, and the highway is our life!")</div></div></div><div class="px-6 py-3 border-t border-stone-800 bg-stone-950 flex justify-between items-center text-xs text-stone-400 font-mono"><span class="hidden sm:inline">Click any decor item in the cabin to read its story</span><button data-a="close" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg">RETURN TO CABIN</button></div></div>`)}
+function snap(){openModal(`<div class="w-full max-w-lg bg-stone-100 text-stone-900 rounded-xl p-5 shadow-2xl border-4 border-amber-600 relative flex flex-col font-mono"><button data-a="close" class="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg border-2 border-white">✕</button><div class="flex justify-between items-start border-b-2 border-stone-300 pb-3 mb-3"><div><div class="font-bold text-red-700 tracking-widest font-devanagari text-base">भारतीय राजमार्ग डाक सेवा</div><div class="text-[10px] text-stone-600 font-bold">INDIAN HIGHWAY EXPEDITION POSTCARD</div></div><div class="w-16 border-2 border-dashed border-red-800 p-1 bg-amber-50 rounded flex flex-col items-center text-center"><span class="text-[8px] font-bold text-red-800">INDIA POST</span><span class="text-xl">🚛</span><span class="text-[7px] text-stone-700 font-bold">₹ 5.00</span></div></div><div class="rounded-lg border-2 border-stone-800 bg-stone-900 text-stone-100 p-4 mb-4"><div class="flex justify-between text-[10px] text-amber-400 border-b border-stone-800 pb-1 mb-2"><b>CABIN LOG: TATA 1613 TRUCK</b><span>SPEED: ${Math.round(S.speed)} KM/H · ${Math.round(S.rpm)} RPM</span></div><div class="text-xs text-stone-300 mb-2"><span class="text-stone-400">LOCATION: </span><b class="text-amber-300">${NAMES[S.env]}</b></div><div class="text-xs text-stone-300 mb-3"><span class="text-stone-400">ATMOSPHERE: </span>Golden sunlight through dusty windshield, colorful prayer flags fluttering, bridal tassels swaying, brass Ganesha surrounded by fresh marigold petals, retro cassette deck spinning tape.</div><div class="p-2 bg-amber-950/60 rounded border border-amber-600 text-center font-devanagari text-yellow-300 text-sm font-bold">"हंस मत पगली, प्यार हो जाएगा!"</div></div><div class="grid grid-cols-2 gap-4 text-[10px] text-stone-600"><div><div class="font-bold text-stone-800 mb-1">DISPATCHED FROM:</div><div>Driver Cabin, Tata 1613</div><div>Right Hand Drive Custom Woodgrain</div><div>Cassette Deck: 98.4 MHz FM</div></div><div class="border-l border-stone-300 pl-3"><div class="font-bold text-stone-800 mb-1">BLESSINGS:</div><div>✓ Nimbu-Mirchi Ward Active</div><div>✓ Om Mani Padme Hum Flags</div><div>✓ Horn OK Please Verified</div></div></div><div class="mt-4 pt-3 border-t-2 border-stone-300 flex justify-end"><button data-a="close" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow">CLOSE POSTCARD</button></div></div>`)}
+
+const ACT={
+ engine:()=>toggleEngine(),mute:toggleMute,lore:e=>lore(e.dataset.i||null),snap,close:closeModal,
+ env:e=>{A.click();S.env=e.dataset.i;setScene()},view:e=>{A.click();S.view=e.dataset.i;ui()},
+ fan:()=>{A.click(!S.fan);S.fan=!S.fan;ui()},tog:e=>{const k=e.dataset.i;A.click(!S[k]);S[k]=!S[k];ui()},
+ play:togglePlay,track:e=>{A.click();selectTrack(+e.dataset.i)},
+ prev:()=>{A.click();selectTrack((S.track+3)%4)},next:()=>{A.click();selectTrack((S.track+1)%4)},
+ eject:()=>{A.click(false);if(S.play)togglePlay();S.eject=!S.eject;ui()},
+ tuner:()=>{A.click();S.radio=!S.radio;if(S.radio)radioFreq=radioFreq===98.3?93.5:98.3;ui()},
+ tune:e=>{A.click();S.tune=e.dataset.i;ui()}};
+document.addEventListener('click',e=>{if(e.target.id==='modal'){closeModal();return}const t=e.target.closest('[data-a]');if(!t||t.closest('#charm')&&charmMoved)return;const f=ACT[t.dataset.a];f&&f(t);e.stopPropagation()},true);
+$('vol').oninput=e=>{S.vol=+e.target.value;A.vol(S.vol)};$('vol').onclick=e=>e.stopPropagation();
+const H=$('horn');H.addEventListener('pointerdown',e=>{e.stopPropagation();hornDown()});['pointerup','pointerleave','pointercancel'].forEach(n=>H.addEventListener(n,hornUp));
+$('wheel').addEventListener('pointerdown',e=>{const r=e.currentTarget.getBoundingClientRect();$('wheel').style.transform=`rotate(${e.clientX-r.left-r.width/2>0?12:-12}deg)`});
+$('wheel').addEventListener('pointerup',()=>setTimeout(()=>$('wheel').style.transform='',200));
+const AC=$('bAcc');AC.addEventListener('pointerdown',()=>{S.rev=true;ui()});['pointerup','pointerleave','pointercancel'].forEach(n=>AC.addEventListener(n,()=>{if(S.rev){S.rev=false;ui()}}));
+['click','keydown'].forEach(n=>window.addEventListener(n,init,{once:true}));
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName)&&e.code!=='Space')return;const c=e.code;
+ if(c==='Space'){e.preventDefault();if(!e.repeat)hornDown()}else if((c==='KeyW'||c==='ArrowUp')&&S.engineOn){S.rev=true;ui()}else if(c==='KeyE'&&!e.repeat)toggleEngine();else if(c==='KeyC'&&!e.repeat)togglePlay();else if(c==='Escape')closeModal();
+ else{const i='Digit1Digit2Digit3Digit4'.indexOf(c);if(i>=0&&i%6===0){S.env=ENVS[i/6][0];setScene()}}});
+addEventListener('keyup',e=>{if(e.code==='Space'){e.preventDefault();hornUp()}else if(e.code==='KeyW'||e.code==='ArrowUp'){S.rev=false;ui()}});
+
+/* ---------- CHARM PHYSICS (drag + spring) ---------- */
+let ca=0,cv=0,drag=false,dx0=0,charmMoved=false;
+const charm=$('charm');
+charm.addEventListener('pointerdown',e=>{drag=true;charmMoved=false;dx0=e.clientX;e.stopPropagation()});
+addEventListener('pointermove',e=>{if(!drag)return;const d=(e.clientX-dx0)*.25;if(Math.abs(d)>3)charmMoved=true;ca=Math.max(-45,Math.min(45,d))});
+addEventListener('pointerup',()=>{drag=false;setTimeout(()=>charmMoved=false,0)});
+
+/* ---------- MAIN LOOP ---------- */
+const cv2=$('cv'),cx=cv2.getContext('2d');let W,Hh,wa=0,wd=1,lastVU=0,lastCnt=0,cache;
+const rs=()=>{W=cv2.width=cv2.parentElement.clientWidth;Hh=cv2.height=cv2.parentElement.clientHeight};rs();addEventListener('resize',rs);
+const R=Math.random,dust=Array.from({length:45},()=>({x:R()*W,y:R()*Hh,s:R()*2.2+.6,vx:(R()-.3)*.4,vy:R()*.3+.1,a:R()*.6+.2})),rain=Array.from({length:120},()=>({x:R()*W,y:R()*Hh,l:R()*25+15,v:R()*18+14,a:R()*.5+.3})),bok=Array.from({length:18},()=>({x:R()*W,y:Hh*.4+R()*Hh*.4,r:R()*32+12,c:['#fbbf24','#f97316','#ef4444','#38bdf8','#34d399'][Math.floor(R()*5)],a:R()*.35+.1}));
+function frame(now){
+ // physics
+ if(!S.engineOn){S.rpm=Math.max(0,S.rpm-15);S.speed=Math.max(0,S.speed-.4)}
+ else{const tr=S.rev?2750:680,ts=S.rev?78:35;S.rpm+=(tr-S.rpm)*.12;S.speed+=(ts-S.speed)*.05;if(!S.muted)A.rpm(S.rpm)}
+ $('sN').style.transform=`rotate(${-120+S.speed/120*240}deg)`;$('rN').style.transform=`rotate(${-120+S.rpm/3500*240}deg)`;
+ $('sT').textContent=Math.round(S.speed);$('rT').textContent=Math.round(S.rpm);
+ // stereo ticks
+ if(now-lastCnt>1000){lastCnt=now;if(S.play){counter=(counter+1)%999}$('cnt').textContent=S.radio?radioFreq.toFixed(1)+' MHz':'T-'+String(counter).padStart(3,'0')}
+ if(now-lastVU>110){lastVU=now;vu=S.play?[Math.floor(R()*6)+3,Math.floor(R()*6)+3]:[0,0];vuDraw()}
+ // canvas weather
+ cx.clearRect(0,0,W,Hh);
+ if(S.env==='sunny-bazaar'||S.env==='sunset-desert'){dust.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y>Hh)p.y=0;cx.beginPath();cx.arc(p.x,p.y,p.s,0,6.283);cx.fillStyle=`rgba(254,240,138,${p.a*.75})`;cx.shadowBlur=4;cx.shadowColor='#fef08a';cx.fill()});cx.shadowBlur=0}
+ if(S.env==='monsoon-ghats'){cx.lineWidth=1.4;rain.forEach(d=>{d.y+=d.v;d.x+=(R()-.5)*.5;if(d.y>Hh){d.y=-20;d.x=R()*W}cx.strokeStyle=`rgba(200,230,255,${d.a})`;cx.beginPath();cx.moveTo(d.x,d.y);cx.lineTo(d.x-2,d.y+d.l);cx.stroke()})}
+ if(S.env==='neon-night'){bok.forEach(b=>{cx.beginPath();cx.arc(b.x,b.y,b.r,0,6.283);cx.fillStyle=b.c;cx.globalAlpha=b.a;cx.fill()});cx.globalAlpha=1}
+ // wipers
+ if(S.wipers){wa+=wd*.03;if(wa>1){wa=1;wd=-1}else if(wa<0){wa=0;wd=1}}
+ const wdg=`rotate(${-40+wa*85}deg)`;$('w1').style.transform=wdg;$('w2').style.transform=wdg;
+ // charm spring
+ if(!drag){const j=S.rev?(R()-.5)*1.8:S.engineOn?(R()-.5)*.4:0;cv=(cv+(-.045*ca+j))*.94;ca+=cv;if(!S.engineOn&&Math.abs(ca)<.05&&Math.abs(cv)<.05)ca=0}
+ charm.style.transform=`rotate(${ca}deg)`;
+ requestAnimationFrame(frame)}
+setScene();vuDraw();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
